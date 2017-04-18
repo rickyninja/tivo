@@ -29,7 +29,7 @@ const tvDetailXML = `
       <vChoreographer/>
       <colorCode value="4">COLOR</colorCode>
       <country>United States</country>
-      <description>While Angel attempts to unearth a demon who will annihilate the planet, Buffy reluctantly decides to destroy her former lover; Willow unlocks a secret.  Copyright Tribune Media Services, Inc.</description>
+      <description>While Angel attempts to unearth a demon who will annihilate the planet, Buffy reluctantly decides to destroy her former lover; Willow unlocks a secret. Copyright Tribune Media Services, Inc.</description>
       <vDirector>
         <element>Whedon|Joss</element>
       </vDirector>

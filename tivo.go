@@ -126,12 +126,6 @@ func (c *Tivo) GetDetail(ci ContainerItem) VideoDetail {
 
 	xmldata := c.FetchData(uri)
 	detail := c.GetDetailFromXML(xmldata)
-	detail = c.ScrubDetail(detail)
-	return detail
-}
-
-func (c *Tivo) ScrubDetail(detail VideoDetail) VideoDetail {
-	detail.Description = strings.TrimSuffix(detail.Description, " Copyright Tribune Media Services, Inc.")
 	return detail
 }
 

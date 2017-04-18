@@ -3,6 +3,7 @@ package tivo
 import (
 	"encoding/xml"
 	"testing"
+	"time"
 )
 
 func TestContainerItemXMLUnmarshal(t *testing.T) {
@@ -44,6 +45,7 @@ func TestContainerItemXMLUnmarshal(t *testing.T) {
 func tvVideoDetail(t *testing.T, detail VideoDetail) {
 	var (
 		expectedString string
+		expectedDesc   description
 		expectedInt    int
 		expectedBool   bool
 		expectedGenre  []Genre
@@ -79,9 +81,9 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		}
 	}
 
-	expectedString = "While Angel attempts to unearth a demon who will annihilate the planet, Buffy reluctantly decides to destroy her former lover; Willow unlocks a secret.  Copyright Tribune Media Services, Inc."
-	if detail.Description != expectedString {
-		t.Errorf(`Expected Description to be %s, not %s`, expectedString, detail.Description)
+	expectedDesc = description("While Angel attempts to unearth a demon who will annihilate the planet, Buffy reluctantly decides to destroy her former lover; Willow unlocks a secret.")
+	if detail.Description != expectedDesc {
+		t.Errorf(`Expected Description to be %s, not %s`, expectedDesc, detail.Description)
 	}
 
 	expectedPerson = []Person{
@@ -167,10 +169,15 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 
 // Test XML unmarshaling of TiVoContainer items with InProgress present
 func tvContainerItemInProgress(t *testing.T, item ContainerItem) {
-	var expectedString string
-	expectedString = "Yes"
-	if item.InProgress != expectedString {
-		t.Errorf(`Expected InProgress to be %s, not %s`, expectedString, item.InProgress)
+	var expectedBool yesNoBool
+	expectedBool = true
+	if item.InProgress != expectedBool {
+		t.Errorf(`Expected InProgress to be %t, not %t`, expectedBool, item.InProgress)
+	}
+
+	expectedBool = true
+	if item.HighDefinition != expectedBool {
+		t.Errorf(`Expected HighDefinition to be %t, not %t`, expectedBool, item.HighDefinition)
 	}
 }
 
@@ -178,6 +185,8 @@ func tvContainerItemInProgress(t *testing.T, item ContainerItem) {
 func movieVideoDetail(t *testing.T, detail VideoDetail) {
 	var (
 		expectedString string
+		expectedDesc   description
+		expectedTime   myTime
 		expectedInt    int
 		expectedBool   bool
 		expectedGenre  []Genre
@@ -203,9 +212,9 @@ func movieVideoDetail(t *testing.T, detail VideoDetail) {
 		t.Errorf(`Expected SeriesTitle to be %s, not %s`, expectedString, detail.SeriesTitle)
 	}
 
-	expectedString = `A boy and his new friend, the class outsider, create an imaginary world in which they rule as king and queen. Based on the novel by Katherine Paterson. Copyright Tribune Media Services, Inc.`
-	if detail.Description != expectedString {
-		t.Errorf(`Expected Description to be [%s], not [%s]`, expectedString, detail.Description)
+	expectedDesc = description(`A boy and his new friend, the class outsider, create an imaginary world in which they rule as king and queen. Based on the novel by Katherine Paterson.`)
+	if detail.Description != expectedDesc {
+		t.Errorf(`Expected Description to be %s, not %s`, expectedDesc, detail.Description)
 	}
 
 	// No XML input to test the following:
@@ -213,9 +222,16 @@ func movieVideoDetail(t *testing.T, detail VideoDetail) {
 	//   Choreographers
 	//   Hosts
 
-	expectedString = `2008-01-08T11:30:00Z`
-	if detail.Time != expectedString {
-		t.Errorf(`Expected Time to be %s, not %s`, expectedString, detail.Time)
+	date, err := time.Parse("2006-01-02T15:04:05Z", "2008-01-08T11:30:00Z")
+	if err != nil {
+		t.Errorf(`Failed to parse time: %s`, err)
+	}
+	expectedTime = myTime{date}
+	if detail.Time != expectedTime {
+		t.Errorf(`Expected Time to be %s, not %s`, expectedTime, detail.Time)
+	}
+	if detail.Time.String() != expectedTime.String() {
+		t.Errorf(`Expected Time string to be %s, not %s`, expectedTime, detail.Time)
 	}
 
 	expectedInt = 2007
@@ -308,9 +324,11 @@ func inGenre(findit Genre, list []Genre) bool {
 // Test XML unmarshaling of TiVoContainer items
 func tvContainerItem(t *testing.T, item ContainerItem) {
 	var (
-		expectedString string
-		expectedInt    int
-		expectedInt64  int64
+		expectedString  string
+		expectedInt     int
+		expectedInt64   int64
+		expectedHexDate hexDate
+		expectedBool    yesNoBool
 	)
 
 	expectedString = "video/x-tivo-raw-pes"
@@ -338,9 +356,13 @@ func tvContainerItem(t *testing.T, item ContainerItem) {
 		t.Errorf(`Expected Duration to be %d, not %d`, expectedInt64, item.Duration)
 	}
 
-	expectedString = "0x5089FCEA"
-	if item.CaptureDate != expectedString {
-		t.Errorf(`Expected CaptureDate to be %s, not %s`, expectedString, item.CaptureDate)
+	date, err := time.Parse("2006-01-02 15:04:05 -0700 MST", "2012-10-25 20:00:58 -0700 MST")
+	if err != nil {
+		t.Errorf(`Failed to parse time: %s`, err)
+	}
+	expectedHexDate = hexDate{date}
+	if item.CaptureDate != expectedHexDate {
+		t.Errorf(`Expected CaptureDate to be %s, not %s`, expectedHexDate, item.CaptureDate)
 	}
 
 	expectedString = "Triggerman"
@@ -363,9 +385,9 @@ func tvContainerItem(t *testing.T, item ContainerItem) {
 		t.Errorf(`Expected SourceStation to be %s, not %s`, expectedString, item.SourceStation)
 	}
 
-	expectedString = "No"
-	if item.HighDefinition != expectedString {
-		t.Errorf(`Expected HighDefinition to be %s, not %s`, expectedString, item.HighDefinition)
+	expectedBool = false
+	if item.HighDefinition != expectedBool {
+		t.Errorf(`Expected HighDefinition to be %t, not %t`, expectedBool, item.HighDefinition)
 	}
 
 	expectedString = "EP014198470027"

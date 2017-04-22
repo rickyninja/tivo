@@ -2,6 +2,7 @@ package tivo
 
 import (
 	"encoding/xml"
+	"sort"
 	"testing"
 	"time"
 )
@@ -48,8 +49,8 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		expectedDesc   description
 		expectedInt    int
 		expectedBool   bool
-		expectedGenre  []Genre
-		expectedPerson []Person
+		expectedGenres Genres
+		expectedPeople People
 	)
 
 	expectedString = "1998-05-12T01:00:00Z"
@@ -67,7 +68,8 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		t.Errorf(`Expected EpisodeNumber to be %d, not %d`, expectedString, detail.EpisodeNumber)
 	}
 
-	expectedPerson = []Person{
+	sort.Sort(detail.Actors)
+	expectedPeople = People{
 		"Gellar|Sarah Michelle",
 		"Brendon|Nicholas",
 		"Hannigan|Alyson",
@@ -75,8 +77,12 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		"Head|Anthony Stewart",
 		"Boreanaz|David",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Actors) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Actors[i] >= p
+		}
+		i := sort.Search(len(detail.Actors), f)
+		if !(i < len(detail.Actors) && detail.Actors[i] == p) {
 			t.Errorf(`Expected Actors to contain %s`, p)
 		}
 	}
@@ -86,16 +92,21 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		t.Errorf(`Expected Description to be %s, not %s`, expectedDesc, detail.Description)
 	}
 
-	expectedPerson = []Person{
+	expectedPeople = People{
 		"Whedon|Joss",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Directors) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Directors[i] >= p
+		}
+		i := sort.Search(len(detail.Directors), f)
+		if !(i < len(detail.Directors) && detail.Directors[i] == p) {
 			t.Errorf(`Expected Directors to contain %s`, p)
 		}
 	}
 
-	expectedPerson = []Person{
+	sort.Sort(detail.ExecProducers)
+	expectedPeople = People{
 		"Whedon|Joss",
 		"Berman|Gail",
 		"Gallin|Sandy",
@@ -103,8 +114,12 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		"Kuzui|Kaz",
 		"Greenwalt|David",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.ExecProducers) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.ExecProducers[i] >= p
+		}
+		i := sort.Search(len(detail.ExecProducers), f)
+		if !(i < len(detail.ExecProducers) && detail.ExecProducers[i] == p) {
 			t.Errorf(`Expected ExecProducers to contain %s`, p)
 		}
 	}
@@ -119,24 +134,33 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		t.Errorf(`Expected IsEpisodic to be %t, not %t`, expectedBool, detail.IsEpisodic)
 	}
 
-	expectedPerson = []Person{
+	expectedPeople = People{
 		"Davies|Gareth",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Producers) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Producers[i] >= p
+		}
+		i := sort.Search(len(detail.Producers), f)
+		if !(i < len(detail.Producers) && detail.Producers[i] == p) {
 			t.Errorf(`Expected Producers to contain %s`, p)
 		}
 	}
 
-	expectedGenre = []Genre{
+	sort.Sort(detail.SeriesGenres)
+	expectedGenres = Genres{
 		"Drama",
 		"Fantasy",
 		"Horror",
 		"Drama",
 		"Sci-Fi and Fantasy",
 	}
-	for _, g := range expectedGenre {
-		if !inGenre(g, detail.SeriesGenres) {
+	for _, g := range expectedGenres {
+		f := func(i int) bool {
+			return detail.SeriesGenres[i] >= g
+		}
+		i := sort.Search(len(detail.SeriesGenres), f)
+		if !(i < len(detail.SeriesGenres) && detail.SeriesGenres[i] == g) {
 			t.Errorf(`Expected SeriesGenres to contain %s`, g)
 		}
 	}
@@ -146,11 +170,15 @@ func tvVideoDetail(t *testing.T, detail VideoDetail) {
 		t.Errorf(`Expected Title to be %s, not %s`, expectedString, detail.Title)
 	}
 
-	expectedPerson = []Person{
+	expectedPeople = People{
 		"Whedon|Joss",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Writers) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Writers[i] >= p
+		}
+		i := sort.Search(len(detail.Writers), f)
+		if !(i < len(detail.Writers) && detail.Writers[i] == p) {
 			t.Errorf(`Expected Writers to contain %s`, p)
 		}
 	}
@@ -189,8 +217,8 @@ func movieVideoDetail(t *testing.T, detail VideoDetail) {
 		expectedTime   myTime
 		expectedInt    int
 		expectedBool   bool
-		expectedGenre  []Genre
-		expectedPerson []Person
+		expectedGenres Genres
+		expectedPeople People
 	)
 	expectedBool = true
 	if detail.IsEpisode != expectedBool {
@@ -244,14 +272,20 @@ func movieVideoDetail(t *testing.T, detail VideoDetail) {
 		t.Errorf(`Expected MovieYear to be %d, not %d`, expectedInt, detail.MovieYear)
 	}
 
-	expectedGenre = []Genre{"Fantasy", "Movies", "Sci-Fi and Fantasy"}
-	for _, g := range expectedGenre {
-		if !inGenre(g, detail.SeriesGenres) {
+	sort.Sort(detail.SeriesGenres)
+	expectedGenres = Genres{"Fantasy", "Movies", "Sci-Fi and Fantasy"}
+	for _, g := range expectedGenres {
+		f := func(i int) bool {
+			return detail.SeriesGenres[i] >= g
+		}
+		i := sort.Search(len(detail.SeriesGenres), f)
+		if !(i < len(detail.SeriesGenres) && detail.SeriesGenres[i] == g) {
 			t.Errorf(`Expected SeriesGenres to contain %s`, g)
 		}
 	}
 
-	expectedPerson = []Person{
+	sort.Sort(detail.Actors)
+	expectedPeople = People{
 		"Hutcherson|Josh",
 		"Robb|AnnaSophia",
 		"Deschanel|Zooey",
@@ -266,59 +300,59 @@ func movieVideoDetail(t *testing.T, detail VideoDetail) {
 		"Gaines|Latham",
 		"Owen|Carly",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Actors) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Actors[i] >= p
+		}
+		i := sort.Search(len(detail.Actors), f)
+		if !(i < len(detail.Actors) && detail.Actors[i] == p) {
 			t.Errorf(`Expected Actors to contain %s`, p)
 		}
 	}
 
-	expectedPerson = []Person{
+	expectedPeople = People{
 		"Csupo|Gabor",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Directors) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Directors[i] >= p
+		}
+		i := sort.Search(len(detail.Directors), f)
+		if !(i < len(detail.Directors) && detail.Directors[i] == p) {
 			t.Errorf(`Expected Directors to contain %s`, p)
 		}
 	}
 
-	expectedPerson = []Person{
+	sort.Sort(detail.Producers)
+	expectedPeople = People{
 		"Lieberman|Hal",
 		"Levine|Lauren",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Producers) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Producers[i] >= p
+		}
+		i := sort.Search(len(detail.Producers), f)
+		if !(i < len(detail.Producers) && detail.Producers[i] == p) {
 			t.Errorf(`Expected Producers to contain %s`, p)
 		}
 	}
 
-	expectedPerson = []Person{
+	sort.Sort(detail.Writers)
+	expectedPeople = People{
 		"Paterson|David",
 		"Stockwell|Jeff",
 		"Wade|Kevin",
 	}
-	for _, p := range expectedPerson {
-		if !inPerson(p, detail.Writers) {
+	for _, p := range expectedPeople {
+		f := func(i int) bool {
+			return detail.Writers[i] >= p
+		}
+		i := sort.Search(len(detail.Writers), f)
+		if !(i < len(detail.Writers) && detail.Writers[i] == p) {
 			t.Errorf(`Expected Writers to contain %s`, p)
 		}
 	}
-}
-
-func inPerson(findit Person, list []Person) bool {
-	for _, p := range list {
-		if p == findit {
-			return true
-		}
-	}
-	return false
-}
-
-func inGenre(findit Genre, list []Genre) bool {
-	for _, g := range list {
-		if g == findit {
-			return true
-		}
-	}
-	return false
 }
 
 // Test XML unmarshaling of TiVoContainer items

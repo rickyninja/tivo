@@ -76,7 +76,34 @@ type ContainerItem struct {
 }
 
 type Person string
+type People []Person
+
+func (p People) Len() int {
+	return len(p)
+}
+
+func (p People) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p People) Less(i, j int) bool {
+	return p[i] < p[j]
+}
+
 type Genre string
+type Genres []Genre
+
+func (g Genres) Len() int {
+	return len(g)
+}
+
+func (g Genres) Swap(i, j int) {
+	g[i], g[j] = g[j], g[i]
+}
+
+func (g Genres) Less(i, j int) bool {
+	return g[i] < g[j]
+}
 
 type VideoDetailRoot struct {
 	XMLName xml.Name `xml:"TvBusEnvelope"`
@@ -124,19 +151,19 @@ type VideoDetail struct {
 	OriginalAirDate string      `xml:"program>originalAirDate"`
 	// episode Number is frequently incorrect in tivo metadata,
 	// prefer the value acquired from TV meta data API.
-	EpisodeNumber  string   `xml:"program>episodeNumber"`
-	EpisodeTitle   string   `xml:"program>episodeTitle"`
-	Time           myTime   `xml:"time"`
-	MovieYear      int      `xml:"program>movieYear"`
-	PartCount      int      `xml:"partCount"`
-	PartIndex      int      `xml:"partIndex"`
-	SeriesGenres   []Genre  `xml:"program>series>vSeriesGenre>element"`
-	Actors         []Person `xml:"program>vActor>element"`
-	GuestStars     []Person `xml:"program>vGuestStar>element"`
-	Directors      []Person `xml:"program>vDirector>element"`
-	ExecProducers  []Person `xml:"program>vExecProducer>element"`
-	Producers      []Person `xml:"program>vProducer>element"`
-	Choreographers []Person `xml:"program>vChoreographer>element"`
-	Writers        []Person `xml:"program>vWriter>element"`
-	Hosts          []Person `xml:"program>vHost>element"`
+	EpisodeNumber  string `xml:"program>episodeNumber"`
+	EpisodeTitle   string `xml:"program>episodeTitle"`
+	Time           myTime `xml:"time"`
+	MovieYear      int    `xml:"program>movieYear"`
+	PartCount      int    `xml:"partCount"`
+	PartIndex      int    `xml:"partIndex"`
+	SeriesGenres   Genres `xml:"program>series>vSeriesGenre>element"`
+	Actors         People `xml:"program>vActor>element"`
+	GuestStars     People `xml:"program>vGuestStar>element"`
+	Directors      People `xml:"program>vDirector>element"`
+	ExecProducers  People `xml:"program>vExecProducer>element"`
+	Producers      People `xml:"program>vProducer>element"`
+	Choreographers People `xml:"program>vChoreographer>element"`
+	Writers        People `xml:"program>vWriter>element"`
+	Hosts          People `xml:"program>vHost>element"`
 }

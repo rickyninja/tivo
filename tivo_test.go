@@ -14,7 +14,7 @@ func TestContainerItemXMLUnmarshal(t *testing.T) {
 		t.Errorf("Failed to Unmarshal Container: %s", err)
 	}
 
-	vdRoot := VideoDetailRoot{}
+	vdRoot := TvBusEnvelope{}
 	err = xml.Unmarshal([]byte(movieDetailXML), &vdRoot)
 	if err != nil {
 		t.Errorf("Failed to Unmarshal VideoDetail: %s", err)
@@ -33,7 +33,7 @@ func TestContainerItemXMLUnmarshal(t *testing.T) {
 	}
 	tvContainerItemInProgress(t, container.Items[0])
 
-	vdRoot = VideoDetailRoot{}
+	vdRoot = TvBusEnvelope{}
 	err = xml.Unmarshal([]byte(tvDetailXML), &vdRoot)
 	if err != nil {
 		t.Errorf("Failed to Unmarshal VideoDetail: %s", err)

@@ -9,13 +9,16 @@ import (
 	"time"
 )
 
+// TiVoContainer represents the response returned by QueryContainer.
 type Container struct {
 	XMLName xml.Name        `xml:"TiVoContainer"`
 	Items   []ContainerItem `xml:"Item"`
 }
 
+// yesNoBool represents a bool formatted as Yes/No in responses from tivo.
 type yesNoBool bool
 
+// UnmarshalXML implements xml.Unmarshaler, and coerces the yes/no string to act like a bool.
 func (m *yesNoBool) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var yesno string
 	err := d.DecodeElement(&yesno, &start)
@@ -33,10 +36,13 @@ func (m *yesNoBool) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
+// hexDate represents a date formatted as hexadecimal in responses from tivo.
+// eg: 0x51ED10AE
 type hexDate struct {
 	time.Time
 }
 
+// UnmarshalXML implements the xml.Unmarshaler, and coerces hex dates to act like time.Time.
 func (m *hexDate) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var date string // eg: 0x51ED10AE -> 2013-07-22 03:59:58 -0700 MST
 	err := d.DecodeElement(&date, &start)
@@ -51,6 +57,7 @@ func (m *hexDate) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
+// ContainerItem represents info about a tivo recording.
 type ContainerItem struct {
 	InProgress      yesNoBool `xml:"Details>InProgress"`
 	ContentType     string    `xml:"Details>ContentType"`
@@ -75,43 +82,58 @@ type ContainerItem struct {
 	Detail          VideoDetail
 }
 
+// Person represents a person in responses from tivo.
 type Person string
+
+// People represents multiple persons in responses from tivo, and is used to help implement sort.Interface.
 type People []Person
 
+// Len helps implement sort.Interface.
 func (p People) Len() int {
 	return len(p)
 }
 
+// Swap helps implement sort.Interface.
 func (p People) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
 }
 
+// Less helps implement sort.Interface.
 func (p People) Less(i, j int) bool {
 	return p[i] < p[j]
 }
 
+// Genre represents a genre in responses from tivo.
 type Genre string
+
+// Genres represents multiple genres in responses from tivo, and is used to help implement sort.Interface.
 type Genres []Genre
 
+// Len helps implement sort.Interface.
 func (g Genres) Len() int {
 	return len(g)
 }
 
+// Swap helps implement sort.Interface.
 func (g Genres) Swap(i, j int) {
 	g[i], g[j] = g[j], g[i]
 }
 
+// Less helps implement sort.Interface.
 func (g Genres) Less(i, j int) bool {
 	return g[i] < g[j]
 }
 
-type VideoDetailRoot struct {
+// TvBusEnvelope represents the response returned by GetDetail.
+type TvBusEnvelope struct {
 	XMLName xml.Name `xml:"TvBusEnvelope"`
 	Showing VideoDetail
 }
 
+// description represents a description of a tivo recording.
 type description string
 
+// UnmarshalXML implements the xml.Unmarshaler, and mutates the description to look the same as it does in the tivo UI.
 func (desc *description) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var str string
 	err := d.DecodeElement(&str, &start)
@@ -123,10 +145,12 @@ func (desc *description) UnmarshalXML(d *xml.Decoder, start xml.StartElement) er
 	return nil
 }
 
+// myTime represents a time string in responses from tivo.
 type myTime struct {
 	time.Time
 }
 
+// UnmarshalXML implements the xml.Unmarshaler, and coerces date string to act like time.Time.
 func (t *myTime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var date string // eg: 2008-01-08T11:30:00Z
 	err := d.DecodeElement(&date, &start)
@@ -141,6 +165,7 @@ func (t *myTime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
+// VideoDetail represents detailed info about a tivo recording.
 type VideoDetail struct {
 	XMLName         xml.Name    `xml:"showing"`
 	IsEpisode       bool        `xml:"program>isEpisode"`

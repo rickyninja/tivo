@@ -24,6 +24,7 @@ var (
 	ErrCache = errors.New("cache error")
 )
 
+// Client is a tivo client.
 type Client struct {
 	Debug     bool
 	BaseURI   string
@@ -38,6 +39,7 @@ type Client struct {
 	*http.Client
 }
 
+// NewClient returns a ready to use Client.
 func NewClient(host string, login string, protocol string, mak int, cachefile string) (*Client, error) {
 	c := cache.New(time.Second*3600, time.Minute*60)
 	if _, err := os.Stat(cachefile); err == nil {
@@ -80,14 +82,15 @@ func NewClient(host string, login string, protocol string, mak int, cachefile st
 	}, nil
 }
 
-func (c *Client) FetchData(uri *url.URL) ([]byte, error) {
+// GetCache does an HTTP GET on the uri, and caches the response body.
+func (c *Client) GetCache(uri *url.URL) ([]byte, error) {
 	data, found := c.Cache.Get(uri.String())
 
 	if !found || !c.UseCache {
 		if c.Debug {
 			log.Print("cache miss: " + uri.String() + "\n")
 		}
-		response, err := c.Go(uri)
+		response, err := c.Get(uri)
 		if err != nil {
 			return nil, err
 		}
@@ -108,14 +111,15 @@ func (c *Client) FetchData(uri *url.URL) ([]byte, error) {
 	return data.([]byte), nil
 }
 
+// QueryContainer queries tivo for items in the Container specified in param.
 func (c *Client) QueryContainer(param map[string]string) ([]ContainerItem, error) {
 	param["Command"] = "QueryContainer"
-	uri, err := c.GetURI(param)
+	uri, err := c.baseURLWithQueryParam(param)
 	if err != nil {
 		return nil, err
 	}
 
-	xmldata, err := c.FetchData(uri)
+	xmldata, err := c.GetCache(uri)
 	if err != nil {
 		return nil, err
 	}
@@ -127,26 +131,27 @@ func (c *Client) QueryContainer(param map[string]string) ([]ContainerItem, error
 	return container.Items, nil
 }
 
-func (c *Client) GetDetail(ci ContainerItem) (VideoDetail, error) {
+// GetDetail queries tivo for details of a recording with the link provided.
+func (c *Client) GetDetail(videoDetailsURL string) (VideoDetail, error) {
 	vd := VideoDetail{}
-	uri, err := url.Parse(ci.VideoDetailsURL)
+	uri, err := url.Parse(videoDetailsURL)
 	if err != nil {
 		return vd, err
 	}
 
-	xmldata, err := c.FetchData(uri)
+	xmldata, err := c.GetCache(uri)
 	if err != nil {
 		return vd, err
 	}
-	root := &VideoDetailRoot{}
-	err = xml.Unmarshal(xmldata, root)
+	tbe := &TvBusEnvelope{}
+	err = xml.Unmarshal(xmldata, tbe)
 	if err != nil {
 		return vd, err
 	}
-	return root.Showing, nil
+	return tbe.Showing, nil
 }
 
-func (c *Client) DigestAuth(response *http.Response) (*http.Response, error) {
+func (c *Client) digestAuth(response *http.Response) (*http.Response, error) {
 	var (
 		err     error
 		request *http.Request
@@ -196,10 +201,10 @@ func (c *Client) DigestAuth(response *http.Response) (*http.Response, error) {
 	cnonce := fmt.Sprintf("%8x", time.Now().Unix())
 	digest += fmt.Sprintf(`cnonce="%s", `, cnonce)
 
-	HA1 := c.HA1(c.Login, realm, strconv.Itoa(c.MAK))
-	HA2 := c.HA2(response.Request.Method, response.Request.URL.RequestURI())
+	HA1 := c.ha1(c.Login, realm, strconv.Itoa(c.MAK))
+	HA2 := c.ha2(response.Request.Method, response.Request.URL.RequestURI())
 
-	resp := c.GetDigestResponse(HA1, HA2, nonce, nc, cnonce, qop)
+	resp := c.getDigestResponse(HA1, HA2, nonce, nc, cnonce, qop)
 	digest += fmt.Sprintf(`response="%s"`, resp)
 
 	request.Header.Add("Authorization", digest)
@@ -215,17 +220,17 @@ func (c *Client) DigestAuth(response *http.Response) (*http.Response, error) {
 	return authresponse, nil
 }
 
-func (c *Client) GetDigestResponse(ha1, ha2, nonce, nc, cnonce, qop string) string {
+func (c *Client) getDigestResponse(ha1, ha2, nonce, nc, cnonce, qop string) string {
 	s := []string{ha1, nonce, nc, cnonce, qop, ha2}
 	return h(strings.Join(s, ":"))
 }
 
-func (c *Client) HA2(method string, uri string) string {
+func (c *Client) ha2(method string, uri string) string {
 	s := []string{method, uri}
 	return h(strings.Join(s, ":"))
 }
 
-func (c *Client) HA1(username string, realm string, password string) string {
+func (c *Client) ha1(username string, realm string, password string) string {
 	s := []string{username, realm, password}
 	return h(strings.Join(s, ":"))
 }
@@ -235,7 +240,7 @@ func h(str string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-func (c *Client) GetURI(param map[string]string) (*url.URL, error) {
+func (c *Client) baseURLWithQueryParam(param map[string]string) (*url.URL, error) {
 	uri, err := url.Parse(c.BaseURI)
 	if err != nil {
 		return nil, err
@@ -249,7 +254,8 @@ func (c *Client) GetURI(param map[string]string) (*url.URL, error) {
 	return uri, nil
 }
 
-func (c *Client) Go(uri *url.URL) (*http.Response, error) {
+// Get does an HTTP GET request to tivo.
+func (c *Client) Get(uri *url.URL) (*http.Response, error) {
 	request, err := http.NewRequest("GET", uri.String(), nil)
 	if err != nil {
 		return nil, err
@@ -260,16 +266,15 @@ func (c *Client) Go(uri *url.URL) (*http.Response, error) {
 		return nil, err
 	}
 
-	return c.CheckAuth(response)
+	return c.checkAuth(response)
 }
 
-// Can the Digest auth be hooked into the transport?
-func (c *Client) CheckAuth(response *http.Response) (*http.Response, error) {
+func (c *Client) checkAuth(response *http.Response) (*http.Response, error) {
 	if response.StatusCode == 200 {
 		return response, nil
 	} else if response.StatusCode == 401 {
 		for i := 1; i < 10; i++ {
-			authresponse, err := c.DigestAuth(response)
+			authresponse, err := c.digestAuth(response)
 			if err != nil {
 				return response, err
 			}
@@ -288,6 +293,7 @@ func (c *Client) CheckAuth(response *http.Response) (*http.Response, error) {
 	return response, nil
 }
 
+// WriteCache writes cache contents to disk.
 func (c *Client) WriteCache() error {
 	err := c.Cache.SaveFile(c.CacheFile)
 	if err != nil {

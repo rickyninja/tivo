@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -19,7 +20,11 @@ import (
 	cache "github.com/robfig/go-cache"
 )
 
-type Tivo struct {
+var (
+	ErrCache = errors.New("cache error")
+)
+
+type Client struct {
 	Debug     bool
 	BaseURI   string
 	MAK       int
@@ -33,12 +38,12 @@ type Tivo struct {
 	*http.Client
 }
 
-func New(host string, login string, protocol string, mak int, cachefile string) *Tivo {
+func NewClient(host string, login string, protocol string, mak int, cachefile string) (*Client, error) {
 	c := cache.New(time.Second*3600, time.Minute*60)
 	if _, err := os.Stat(cachefile); err == nil {
 		err := c.LoadFile(cachefile)
 		if err != nil {
-			log.Fatal("Failed to load cache from file: " + cachefile)
+			return nil, err
 		}
 	}
 
@@ -50,7 +55,7 @@ func New(host string, login string, protocol string, mak int, cachefile string) 
 
 	jar, err := cookiejar.New(&cookiejar.Options{})
 	if err != nil {
-		log.Fatal(err.Error())
+		return nil, err
 	}
 
 	client := &http.Client{
@@ -60,34 +65,37 @@ func New(host string, login string, protocol string, mak int, cachefile string) 
 	}
 
 	baseuri := fmt.Sprintf("%s://%s/TiVoConnect", protocol, host)
-	return &Tivo{
-		false,
-		baseuri,
-		mak,
-		"TiVo DVR",
-		login,
-		host,
-		protocol,
-		false,
-		c,
-		cachefile,
-		client,
-	}
+	return &Client{
+		Debug:     false,
+		BaseURI:   baseuri,
+		MAK:       mak,
+		Realm:     "TiVo DVR",
+		Login:     login,
+		Host:      host,
+		Protocol:  protocol,
+		UseCache:  false,
+		Cache:     c,
+		CacheFile: cachefile,
+		Client:    client,
+	}, nil
 }
 
-func (c *Tivo) FetchData(uri *url.URL) []byte {
+func (c *Client) FetchData(uri *url.URL) ([]byte, error) {
 	data, found := c.Cache.Get(uri.String())
 
 	if !found || !c.UseCache {
 		if c.Debug {
 			log.Print("cache miss: " + uri.String() + "\n")
 		}
-		response := c.Go(uri)
+		response, err := c.Go(uri)
+		if err != nil {
+			return nil, err
+		}
 		if response.StatusCode == 200 {
 			var err error
 			data, err = ioutil.ReadAll(response.Body)
 			if err != nil {
-				log.Fatal(err)
+				return nil, err
 			}
 			c.Cache.Set(uri.String(), data, 0)
 		}
@@ -97,54 +105,56 @@ func (c *Tivo) FetchData(uri *url.URL) []byte {
 		}
 	}
 
-	return data.([]byte)
+	return data.([]byte), nil
 }
 
-func (c *Tivo) QueryContainer(param map[string]string) []ContainerItem {
+func (c *Client) QueryContainer(param map[string]string) ([]ContainerItem, error) {
 	param["Command"] = "QueryContainer"
-	uri := c.GetURI(param)
-
-	xmldata := c.FetchData(uri)
-	containers := c.GetContainerFromXML(xmldata)
-	return containers
-}
-
-func (c *Tivo) GetContainerFromXML(xmldata []byte) []ContainerItem {
-	container := &Container{}
-	err := xml.Unmarshal(xmldata, container)
+	uri, err := c.GetURI(param)
 	if err != nil {
-		log.Fatal(fmt.Printf("error: %v", err))
+		return nil, err
 	}
-	return container.Items
+
+	xmldata, err := c.FetchData(uri)
+	if err != nil {
+		return nil, err
+	}
+	container := &Container{}
+	err = xml.Unmarshal(xmldata, container)
+	if err != nil {
+		return nil, err
+	}
+	return container.Items, nil
 }
 
-func (c *Tivo) GetDetail(ci ContainerItem) VideoDetail {
+func (c *Client) GetDetail(ci ContainerItem) (VideoDetail, error) {
+	vd := VideoDetail{}
 	uri, err := url.Parse(ci.VideoDetailsURL)
 	if err != nil {
-		log.Fatal("Failed to parse url: " + err.Error())
+		return vd, err
 	}
 
-	xmldata := c.FetchData(uri)
-	detail := c.GetDetailFromXML(xmldata)
-	return detail
-}
-
-func (c *Tivo) GetDetailFromXML(xmldata []byte) VideoDetail {
-	root := &VideoDetailRoot{}
-	err := xml.Unmarshal(xmldata, root)
+	xmldata, err := c.FetchData(uri)
 	if err != nil {
-		log.Fatal(fmt.Printf("error: %v", err))
+		return vd, err
 	}
-	return root.Showing
+	root := &VideoDetailRoot{}
+	err = xml.Unmarshal(xmldata, root)
+	if err != nil {
+		return vd, err
+	}
+	return root.Showing, nil
 }
 
-func (c *Tivo) DigestAuth(response *http.Response) *http.Response {
-	var err error
-	var request *http.Request
+func (c *Client) DigestAuth(response *http.Response) (*http.Response, error) {
+	var (
+		err     error
+		request *http.Request
+	)
 
 	request, err = http.NewRequest("GET", response.Request.URL.String(), nil)
 	if err != nil {
-		log.Fatal(err)
+		return response, err
 	}
 
 	digest := fmt.Sprintf(`Digest username="%s", `, c.Login)
@@ -153,16 +163,25 @@ func (c *Tivo) DigestAuth(response *http.Response) *http.Response {
 	var result []string
 
 	re, err = regexp.Compile(`Digest realm="([^"]+)"`)
+	if err != nil {
+		return response, err
+	}
 	result = re.FindStringSubmatch(response.Header.Get("Www-Authenticate"))
 	realm := result[1]
 	digest += fmt.Sprintf(`realm="%s", `, realm)
 
 	re, err = regexp.Compile(`nonce="([^"]+)"`)
+	if err != nil {
+		return response, err
+	}
 	result = re.FindStringSubmatch(response.Header.Get("Www-Authenticate"))
 	nonce := result[1]
 	digest += fmt.Sprintf(`nonce="%s", `, nonce)
 
 	re, err = regexp.Compile(`qop="([^"]+)"`)
+	if err != nil {
+		return response, err
+	}
 	result = re.FindStringSubmatch(response.Header.Get("Www-Authenticate"))
 	qop := result[1]
 	digest += fmt.Sprintf(`qop=%s, `, qop)
@@ -191,22 +210,22 @@ func (c *Tivo) DigestAuth(response *http.Response) *http.Response {
 
 	authresponse, err := c.Do(request)
 	if err != nil {
-		log.Fatal(err)
+		return response, err
 	}
-	return authresponse
+	return authresponse, nil
 }
 
-func (c *Tivo) GetDigestResponse(ha1, ha2, nonce, nc, cnonce, qop string) string {
+func (c *Client) GetDigestResponse(ha1, ha2, nonce, nc, cnonce, qop string) string {
 	s := []string{ha1, nonce, nc, cnonce, qop, ha2}
 	return h(strings.Join(s, ":"))
 }
 
-func (c *Tivo) HA2(method string, uri string) string {
+func (c *Client) HA2(method string, uri string) string {
 	s := []string{method, uri}
 	return h(strings.Join(s, ":"))
 }
 
-func (c *Tivo) HA1(username string, realm string, password string) string {
+func (c *Client) HA1(username string, realm string, password string) string {
 	s := []string{username, realm, password}
 	return h(strings.Join(s, ":"))
 }
@@ -216,10 +235,10 @@ func h(str string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-func (c *Tivo) GetURI(param map[string]string) *url.URL {
+func (c *Client) GetURI(param map[string]string) (*url.URL, error) {
 	uri, err := url.Parse(c.BaseURI)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	p := url.Values{}
@@ -227,50 +246,52 @@ func (c *Tivo) GetURI(param map[string]string) *url.URL {
 		p.Add(k, v)
 	}
 	uri.RawQuery = p.Encode()
-	return uri
+	return uri, nil
 }
 
-func (c *Tivo) Go(uri *url.URL) *http.Response {
+func (c *Client) Go(uri *url.URL) (*http.Response, error) {
 	request, err := http.NewRequest("GET", uri.String(), nil)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	response, err := c.Do(request)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	response = c.CheckAuth(response)
-
-	return response
+	return c.CheckAuth(response)
 }
 
 // Can the Digest auth be hooked into the transport?
-func (c *Tivo) CheckAuth(response *http.Response) *http.Response {
+func (c *Client) CheckAuth(response *http.Response) (*http.Response, error) {
 	if response.StatusCode == 200 {
-		return response
+		return response, nil
 	} else if response.StatusCode == 401 {
 		for i := 1; i < 10; i++ {
-			authresponse := c.DigestAuth(response)
+			authresponse, err := c.DigestAuth(response)
+			if err != nil {
+				return response, err
+			}
 			if authresponse.StatusCode == 200 {
-				return authresponse
+				return authresponse, nil
 			} else if authresponse.StatusCode == 503 {
 				log.Print(fmt.Sprintf("%s : attempt %d/10, retrying\n", authresponse.Status, i))
 				time.Sleep(2 * time.Second)
 				continue
 			} else {
-				log.Fatal("Failed to authenticate to the tivo: " + authresponse.Status)
+				return authresponse, errors.New("Failed to authenticate to the tivo: " + authresponse.Status)
 			}
 		}
 	}
 
-	return response
+	return response, nil
 }
 
-func (c *Tivo) WriteCache() {
+func (c *Client) WriteCache() error {
 	err := c.Cache.SaveFile(c.CacheFile)
 	if err != nil {
-		log.Println(err.Error())
+		return err
 	}
+	return nil
 }
